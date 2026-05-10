@@ -1,0 +1,25 @@
+# Terraform — note: .terraform.lock.hcl SHOULD be committed (pins provider versions)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+
+# Inputs that may contain sensitive or environment-specific values
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Logs / misc
+*.log
+
+# Personal notes (not for public repo)
+interview-prep.md
+notes/

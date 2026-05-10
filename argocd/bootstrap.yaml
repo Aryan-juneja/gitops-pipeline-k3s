@@ -1,0 +1,30 @@
+# The "App of Apps" root — apply this once with kubectl, and from then on
+# ArgoCD manages everything (including itself, in setups that include argocd's
+# own manifests in this repo, which we don't bother with here).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bootstrap
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/Aryan-juneja/gitops-pipeline-k3s
+    targetRevision: HEAD
+    path: argocd/apps
+    directory:
+      recurse: true # so subdirectories of argocd/apps get picked up too
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: true # if you delete an Application file, ArgoCD removes the live one
+      selfHeal: true # if someone manually changes a managed resource, revert it
+    syncOptions:
+      - CreateNamespace=true

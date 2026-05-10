@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nginx-demo
+spec:
+  ingressClassName: nginx
+  rules:
+    # nip.io resolves <anything>.<ip-with-dashes>.nip.io to that IP.
+    # If you re-create the EC2 with a new public IP, update this one host.
+    - host: app.98-84-34-207.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx-demo
+                port:
+                  name: http

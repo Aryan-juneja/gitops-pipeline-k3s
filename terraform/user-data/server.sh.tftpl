@@ -1,0 +1,40 @@
+#!/bin/bash
+# Runs once on first boot via cloud-init, as root.
+set -euxo pipefail
+
+# Wait for general internet connectivity (cloud-init can run before network is fully up)
+until curl -s --max-time 5 https://get.k3s.io >/dev/null; do
+  echo "[server] waiting for network..."
+  sleep 2
+done
+
+# Get our public IP from instance metadata (IMDSv2) so we can put it in the API server's TLS SAN
+IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
+PUBLIC_IP=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" \
+  http://169.254.169.254/latest/meta-data/public-ipv4)
+
+# Install k3s server. K3S_TOKEN is shared with agents (passed in by Terraform via templatefile).
+curl -sfL https://get.k3s.io | \
+  K3S_TOKEN='${k3s_token}' \
+  INSTALL_K3S_EXEC="server --write-kubeconfig-mode=644 --disable=traefik --tls-san=$PUBLIC_IP" \
+  sh -
+
+# Wait for the API server to be ready before doing anything else
+until /usr/local/bin/kubectl get nodes 2>/dev/null | grep -q ' Ready '; do
+  echo "[server] waiting for k3s API to be ready..."
+  sleep 5
+done
+
+# Install ingress-nginx (bare-metal flavor, since we're not on a cloud LB)
+/usr/local/bin/kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/baremetal/deploy.yaml
+
+# Convert the ingress controller Service to LoadBalancer so k3s's built-in
+# klipper-lb binds host ports 80/443.
+/usr/local/bin/kubectl -n ingress-nginx \
+  patch svc ingress-nginx-controller \
+  -p '{"spec":{"type":"LoadBalancer"}}'
+
+# Done. The kubeconfig at /etc/rancher/k3s/k3s.yaml uses 127.0.0.1; we'll
+# rewrite it client-side from Terraform output.
+echo "[server] k3s server bootstrap complete"
